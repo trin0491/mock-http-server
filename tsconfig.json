@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "es6",
+    "sourceMap": true,
+    "declaration": true,
+    "outDir": "dist"
+  },
+  "include": [
+    "lib/index.ts",
+    "lib/protractor/MockServerPlugin.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
