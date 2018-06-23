@@ -1,5 +1,5 @@
 import {ProtractorPlugin} from "protractor";
-import {Server} from "..";
+import {server} from "..";
 
 // creating a "var module: any" will allow use of module.exports
 declare var module: any;
@@ -7,10 +7,11 @@ declare var module: any;
 const plugin: ProtractorPlugin = {
 
   onPrepare() {
-    console.log("Starting mock server");
-    const server = new Server();
-    return server.run()
-      .then(() => console.log("Started mock server"))
+    const config = {
+      port: 3000,
+    };
+    return server.run(config)
+      .then(() => console.log(`Started mock server on http:localhost:${config.port}`))
       .catch((err) => console.error("Failed to start mock server", err));
   },
 };

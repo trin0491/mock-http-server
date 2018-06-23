@@ -8,7 +8,7 @@
   },
   "include": [
     "src/index.ts",
-    "src/protractor/MockServerPlugin.ts"
+    "src/protractor/MockHttpServerPlugin.ts"
   ],
   "exclude": [
     "node_modules"

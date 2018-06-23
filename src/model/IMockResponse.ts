@@ -1,8 +1,7 @@
 export interface IMockResponse {
-  name: string;
   expression: string;
-  method: string;
-  responses: { [key: string]: IMockScenario };
+  method: "GET" | "POST" | "UPDATE";
+  scenario: IMockScenario;
 }
 
 export interface IMockScenario {
