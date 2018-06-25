@@ -1,3 +1,3 @@
 export * from "./server/server";
-export * from "./model/IConfig";
+export * from "./server/IConfig";
 export * from "./protractor/MockHttpServerPlugin";
