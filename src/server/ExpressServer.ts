@@ -16,6 +16,9 @@ export class ExpressServer implements IServer {
   }
 
   public respond(mockResponse: IMockResponse): void {
+    if (!this.isStarted()) {
+      throw new Error("Server is not started");
+    }
     this.responses.unshift(mockResponse);
     this.evaluate();
   }
@@ -80,12 +83,16 @@ export class ExpressServer implements IServer {
 
   // noinspection JSMethodCanBeStatic
   private returnResponse(res: express.Response, response: IMockResponse): void {
-    res.status(response.status);
+    if (response.status) {
+      res.status(response.status);
+    } else {
+      res.status(200);
+    }
     res.json(response.data);
   }
 
   private hasResponse(req: express.Request): boolean {
-    return this.responses.filter((response) => req.path.match(response.expression) &&
+    return this.responses.filter((response) => req.url.match(response.expression) &&
       response.method === req.method).length > 0;
   }
 
