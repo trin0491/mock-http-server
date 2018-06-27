@@ -1,5 +1,5 @@
 import * as express from "express";
-import {IncomingMessage} from "http";
+import {IncomingMessage, Server} from "http";
 import {IConfig} from "./IConfig";
 import {IMockResponse} from "./IMockResponse";
 import {IServer} from "./server";
@@ -9,7 +9,7 @@ export class ExpressServer implements IServer {
   private requests: IncomingMessage[] = [];
   private responses: IMockResponse[] = [];
   private openTxs: Array<{ resolve: (value: IncomingMessage) => void, reject: (reason: any) => void }> = [];
-  private isRunning: boolean = false;
+  private server: Server = null;
 
   constructor(private app: express.Express) {
 
@@ -27,19 +27,39 @@ export class ExpressServer implements IServer {
     });
   }
 
-  public run(config: IConfig): Promise<void> {
+  public isStarted(): boolean {
+    return this.server !== null;
+  }
+
+  public start(config: IConfig): Promise<void> {
     return new Promise((resolve, reject) => {
-      if (this.isRunning) {
+      if (this.isStarted()) {
         reject(new Error("Server is already running"));
         return;
       }
-      this.isRunning = true;
+      // TODO need to determine paths to map mock responses from config
       this.app.use("/api", this.onRequest.bind(this));
-      this.app.listen(config.port, (err) => {
+      this.server = this.app.listen(config.port, (err) => {
         if (err) {
-          this.isRunning = false;
+          this.server = null;
           reject(err);
         } else {
+          resolve();
+        }
+      });
+    });
+  }
+
+  public stop(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.isStarted()) {
+        reject(new Error("Server is not started"));
+      }
+      this.server.close((err) => {
+        if (err) {
+          reject(err);
+        } else {
+          this.server = null;
           resolve();
         }
       });

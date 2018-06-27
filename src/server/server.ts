@@ -9,7 +9,11 @@ export interface IServer {
 
   getRequest(): Promise<IncomingMessage>;
 
-  run(config: IConfig);
+  isStarted(): boolean;
+
+  start(config: IConfig): Promise<void>;
+
+  stop(): Promise<void>;
 }
 
 export const server: IServer = new ExpressServer(app);
