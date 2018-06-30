@@ -7,31 +7,31 @@ import {IServer} from "./server";
 export class ExpressServer implements IServer {
 
   private requests: IncomingMessage[] = [];
-  private responses: IMockResponse[] = [];
-  private openTxs: Array<{ resolve: (value: IncomingMessage) => void, reject: (reason: any) => void }> = [];
-  private server: Server = null;
+  private mockResponses: IMockResponse[] = [];
+  private openRequests: Array<{ req: express.Request, res: express.Response }> = [];
+  private requestPromises: Array<{ resolve: (value: IncomingMessage) => void, reject: (reason: any) => void }> = [];
+  private httpServer: Server = null;
 
   constructor(private app: express.Express) {
-
   }
 
   public respond(mockResponse: IMockResponse): void {
     if (!this.isStarted()) {
       throw new Error("Server is not started");
     }
-    this.responses.unshift(mockResponse);
+    this.mockResponses.unshift(mockResponse);
     this.evaluate();
   }
 
   public getRequest(): Promise<IncomingMessage> {
     return new Promise((resolve, reject) => {
-      this.openTxs.unshift({resolve, reject});
+      this.requestPromises.unshift({resolve, reject});
       this.evaluate();
     });
   }
 
   public isStarted(): boolean {
-    return this.server !== null;
+    return this.httpServer !== null;
   }
 
   public start(config: IConfig): Promise<void> {
@@ -40,11 +40,11 @@ export class ExpressServer implements IServer {
         reject(new Error("Server is already running"));
         return;
       }
-      // TODO need to determine paths to map mock responses from config
+      // TODO need to determine paths to map mock mockResponses from config
       this.app.use("/api", this.onRequest.bind(this));
-      this.server = this.app.listen(config.port, (err) => {
+      this.httpServer = this.app.listen(config.port, (err) => {
         if (err) {
-          this.server = null;
+          this.httpServer = null;
           reject(err);
         } else {
           resolve();
@@ -58,11 +58,11 @@ export class ExpressServer implements IServer {
       if (!this.isStarted()) {
         reject(new Error("Server is not started"));
       }
-      this.server.close((err) => {
+      this.httpServer.close((err) => {
         if (err) {
           reject(err);
         } else {
-          this.server = null;
+          this.httpServer = null;
           resolve();
         }
       });
@@ -70,14 +70,12 @@ export class ExpressServer implements IServer {
   }
 
   private onRequest(req: express.Request, res: express.Response): void {
-    this.requests.unshift(req);
-    if (this.hasResponse(req)) {
-      const scenario = this.getResponse(req);
-      if (scenario.delay > 0) {
-        setTimeout(() => this.returnResponse(res, scenario), scenario.delay);
-      } else {
-        this.returnResponse(res, scenario);
-      }
+    if (this.isStarted()) {
+      this.requests.unshift(req);
+      this.openRequests.unshift({req, res});
+      this.evaluate();
+    } else {
+      res.sendStatus(404);
     }
   }
 
@@ -91,23 +89,26 @@ export class ExpressServer implements IServer {
     res.json(response.data);
   }
 
-  private hasResponse(req: express.Request): boolean {
-    return this.responses.filter((response) => req.url.match(response.expression) &&
-      response.method === req.method).length > 0;
-  }
-
-  private getResponse(req: express.Request): IMockResponse {
-    return this.responses.pop();
+  // noinspection JSMethodCanBeStatic
+  private matches(req: express.Request, response: IMockResponse): boolean {
+    return req.url.match(response.expression) && response.method === req.method;
   }
 
   private evaluate(): void {
-    this.openTxs = this.openTxs.reduce((values, handler) => {
-      if (this.requests.length > 0) {
-        handler.resolve(this.requests.pop());
-      } else {
-        values.push(handler);
+    for (let i = this.openRequests.length - 1; i >= 0; --i) {
+      const tx = this.openRequests[i];
+      for (let j = this.mockResponses.length - 1; j >= 0; --j) {
+        const mockResponse = this.mockResponses[j];
+        if (this.matches(tx.req, mockResponse)) {
+          this.openRequests.splice(i, 1);
+          this.mockResponses.splice(j, 1);
+          if (mockResponse.delay > 0) {
+            setTimeout(() => this.returnResponse(tx.res, mockResponse), mockResponse.delay);
+          } else {
+            this.returnResponse(tx.res, mockResponse);
+          }
+        }
       }
-      return values;
-    }, []);
+    }
   }
 }

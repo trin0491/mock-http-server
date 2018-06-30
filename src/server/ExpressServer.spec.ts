@@ -22,7 +22,7 @@ describe("ExpressServer", () => {
 
   function expectListen() {
     mockApp.use.and.callFake((path, callback) => {
-      // TODO specify path
+      // TODO specify path from config
       expect(path).toBeDefined();
       expect(callback).toBeDefined();
       requestCallback = callback;
@@ -49,11 +49,22 @@ describe("ExpressServer", () => {
     };
   }
 
-  function newReq() {
+  function newMockHttpRequestEvent() {
     const req = jasmine.createSpyObj("express.Request", ["get"]);
     req.url = URL;
     req.method = "GET";
-    return req;
+    const res = jasmine.createSpyObj("express.Response", ["json", "status", "sendStatus"]);
+    return [req, res];
+  }
+
+  function expectResponse(mockRes, mockResponse: IMockResponse) {
+    expect(mockRes.status).toHaveBeenCalledWith(mockResponse.status ? mockResponse.status : 200);
+    expect(mockRes.json).toHaveBeenCalledWith(mockResponse.data);
+  }
+
+  function expectNoResponse(mockRes) {
+    expect(mockRes.status).not.toHaveBeenCalled();
+    expect(mockRes.json).not.toHaveBeenCalled();
   }
 
   describe("start()", () => {
@@ -80,7 +91,7 @@ describe("ExpressServer", () => {
       });
     });
 
-    it("should reject calls when already started", () => {
+    it("should reject calls when it has already been started", () => {
       expectListen();
       return server.start(config).then(() => {
         return server.start(config).catch((err) => {
@@ -94,7 +105,7 @@ describe("ExpressServer", () => {
   });
 
   describe("stop()", () => {
-    it("should stop the server if is is started", () => {
+    it("should stop the server if it has been started", () => {
       expectListen();
       return server.start(config).then(() => {
         expectClose();
@@ -118,7 +129,7 @@ describe("ExpressServer", () => {
       });
     });
 
-    it("should not stop the server if is not already started", () => {
+    it("should not stop the server if it has not been started", () => {
       return server.stop().catch((err) => {
         expect(err.message).toBe("Server is not started");
         expect(mockHttp.close).not.toHaveBeenCalled();
@@ -128,23 +139,135 @@ describe("ExpressServer", () => {
   });
 
   describe("respond()", () => {
-    it("should throw an error if the server is not started", () => {
+    it("should throw an error if the server has not been started", () => {
       const mockResponse = newMockResponse();
       expect(() => server.respond(mockResponse)).toThrow();
     });
 
-    it("should queue responses if the request has not been received", async () => {
+    it("should queue the response if the request has not been received", async () => {
       expectListen();
       await server.start(config);
+
       const mockResponse = newMockResponse();
       server.respond(mockResponse);
 
-      const mockReq = newReq();
-      const mockRes = jasmine.createSpyObj("express.Response", ["json", "status"]);
+      const [mockReq, mockRes] = newMockHttpRequestEvent();
       requestCallback(mockReq, mockRes);
 
-      expect(mockRes.status).toHaveBeenCalledWith(200);
-      expect(mockRes.json).toHaveBeenCalledWith(mockResponse.data);
+      expectResponse(mockRes, mockResponse);
+    });
+
+    it("should immediately respond if the request has already been received", async () => {
+      expectListen();
+      await server.start(config);
+
+      const [mockReq, mockRes] = newMockHttpRequestEvent();
+      requestCallback(mockReq, mockRes);
+
+      expectNoResponse(mockRes);
+
+      const mockResponse = newMockResponse();
+      server.respond(mockResponse);
+
+      expectResponse(mockRes, mockResponse);
+    });
+
+    it("should ignore requests if the path does not match", async () => {
+      expectListen();
+      await server.start(config);
+
+      const mockResponse = newMockResponse();
+      mockResponse.expression = "/api/a/different/path";
+      server.respond(mockResponse);
+
+      const [mockReq, mockRes] = newMockHttpRequestEvent();
+      requestCallback(mockReq, mockRes);
+
+      expectNoResponse(mockRes);
+    });
+
+    it("should ignore requests if the method does not match", async () => {
+      expectListen();
+      await server.start(config);
+
+      const mockResponse = newMockResponse();
+      mockResponse.method = "POST";
+      server.respond(mockResponse);
+
+      const [mockReq, mockRes] = newMockHttpRequestEvent();
+      requestCallback(mockReq, mockRes);
+
+      expectNoResponse(mockRes);
+    });
+
+    it("should use the mock response status if it is provided", async () => {
+      expectListen();
+      await server.start(config);
+
+      const mockResponse = newMockResponse();
+      mockResponse.status = 401;
+      server.respond(mockResponse);
+
+      const [mockReq, mockRes] = newMockHttpRequestEvent();
+      requestCallback(mockReq, mockRes);
+
+      expectResponse(mockRes, mockResponse);
+    });
+
+    it("should return the first matching mock response", async () => {
+      expectListen();
+      await server.start(config);
+
+      const mockResponse1 = newMockResponse();
+      mockResponse1.method = "POST";
+      mockResponse1.data = {value: "1"};
+      server.respond(mockResponse1);
+
+      const mockResponse2 = newMockResponse();
+      mockResponse2.data = {value: "2"};
+      server.respond(mockResponse2);
+
+      const mockResponse3 = newMockResponse();
+      mockResponse3.data = {value: "3"};
+      server.respond(mockResponse3);
+
+      const [mockReq, mockRes] = newMockHttpRequestEvent();
+      requestCallback(mockReq, mockRes);
+
+      expectResponse(mockRes, mockResponse2);
+    });
+
+    it("should only respond once", async () => {
+      expectListen();
+      await server.start(config);
+
+      const mockResponse = newMockResponse();
+      server.respond(mockResponse);
+
+      const [mockReq, mockRes] = newMockHttpRequestEvent();
+      requestCallback(mockReq, mockRes);
+
+      expectResponse(mockRes, mockResponse);
+
+      requestCallback(mockReq, mockRes);
+      expect(mockRes.status).toHaveBeenCalledTimes(1);
+      expect(mockRes.json).toHaveBeenCalledTimes(1);
+    });
+
+    it("should reject http requests when the server is stopped", async () => {
+      expectListen();
+      await server.start(config);
+
+      const mockResponse = newMockResponse();
+      server.respond(mockResponse);
+
+      expectClose();
+      await server.stop();
+
+      const [mockReq, mockRes] = newMockHttpRequestEvent();
+      requestCallback(mockReq, mockRes);
+
+      expect(mockRes.sendStatus).toHaveBeenCalledWith(404);
     });
   });
 
