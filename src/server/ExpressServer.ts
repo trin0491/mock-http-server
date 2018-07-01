@@ -17,14 +17,17 @@ export class ExpressServer implements IServer {
 
   public respond(mockResponse: IMockResponse): void {
     if (!this.isStarted()) {
-      throw new Error("Server is not started");
+      throw new Error("Server has not been started");
     }
     this.mockResponses.unshift(mockResponse);
     this.evaluate();
   }
 
-  public getRequest(): Promise<IncomingMessage> {
+  public getRequest(mockResponse?: IMockResponse): Promise<IncomingMessage> {
     return new Promise((resolve, reject) => {
+      if (!this.isStarted()) {
+        reject(new Error("Server has not been started"));
+      }
       this.requestPromises.unshift({resolve, reject});
       this.evaluate();
     });
@@ -56,7 +59,7 @@ export class ExpressServer implements IServer {
   public stop(): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!this.isStarted()) {
-        reject(new Error("Server is not started"));
+        reject(new Error("Server has not been started"));
       }
       this.httpServer.close((err) => {
         if (err) {
@@ -97,6 +100,7 @@ export class ExpressServer implements IServer {
   private evaluate(): void {
     for (let i = this.openRequests.length - 1; i >= 0; --i) {
       const tx = this.openRequests[i];
+
       for (let j = this.mockResponses.length - 1; j >= 0; --j) {
         const mockResponse = this.mockResponses[j];
         if (this.matches(tx.req, mockResponse)) {

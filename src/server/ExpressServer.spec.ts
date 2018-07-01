@@ -131,7 +131,7 @@ describe("ExpressServer", () => {
 
     it("should not stop the server if it has not been started", () => {
       return server.stop().catch((err) => {
-        expect(err.message).toBe("Server is not started");
+        expect(err.message).toBe("Server has not been started");
         expect(mockHttp.close).not.toHaveBeenCalled();
         expect(server.isStarted()).toBe(false);
       });
@@ -254,7 +254,7 @@ describe("ExpressServer", () => {
       expect(mockRes.json).toHaveBeenCalledTimes(1);
     });
 
-    it("should reject http requests when the server is stopped", async () => {
+    it("should return 404 to http requests when the server is stopped", async () => {
       expectListen();
       await server.start(config);
 
@@ -271,4 +271,12 @@ describe("ExpressServer", () => {
     });
   });
 
+  describe("getRequest()", () => {
+    it("should reject calls if the server has not been started", () => {
+      server.getRequest().catch((err) => {
+        expect(err.message).toBe("Server has not been started");
+      });
+    });
+  });
+  
 });
