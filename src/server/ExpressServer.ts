@@ -20,6 +20,7 @@ interface IAction {
 interface ITransaction {
   req: express.Request;
   res: express.Response;
+  next: express.NextFunction;
 }
 
 export class ExpressServer implements IServer {
@@ -87,9 +88,9 @@ export class ExpressServer implements IServer {
     });
   }
 
-  private onRequest(req: express.Request, res: express.Response): void {
+  private onRequest(req: express.Request, res: express.Response, next: express.NextFunction): void {
     if (this.isStarted()) {
-      this.openTransactions.unshift({req, res});
+      this.openTransactions.unshift({req, res, next});
       this.processActions();
     } else {
       res.sendStatus(404);
@@ -149,16 +150,18 @@ export class ExpressServer implements IServer {
 
         if (this.matches(action, tx)) {
           this.actions.splice(j, 1);
-          switch (action.type) {
-            case ActionType.GET_REQUEST:
-              this.processGetRequest(action, tx);
-              break;
-            case ActionType.RESPOND:
-              this.openTransactions.splice(i, 1);
-              this.processRespond(action, tx);
-              break;
-            default:
-              throw new Error("Unknown action type: " + ActionType[action.type]);
+          try {
+            switch (action.type) {
+              case ActionType.GET_REQUEST:
+                this.processGetRequest(action, tx);
+                break;
+              case ActionType.RESPOND:
+                this.openTransactions.splice(i, 1);
+                this.processRespond(action, tx);
+                break;
+            }
+          } catch (err) {
+            tx.next(err);
           }
         }
       }
