@@ -1,35 +1,51 @@
 import * as express from "express";
-import {IncomingMessage, Server} from "http";
+import {Server} from "http";
 import {IConfig} from "./IConfig";
 import {IMockResponse} from "./IMockResponse";
+import {IRequest} from "./IRequest";
 import {IServer} from "./server";
+
+enum ActionType {
+  GET_REQUEST,
+  RESPOND,
+}
+
+interface IAction {
+  type: ActionType;
+  mockResponse: IMockResponse;
+  options: any;
+  payload?: any;
+}
+
+interface ITransaction {
+  req: express.Request;
+  res: express.Response;
+}
 
 export class ExpressServer implements IServer {
 
-  private requests: IncomingMessage[] = [];
-  private mockResponses: IMockResponse[] = [];
-  private openRequests: Array<{ req: express.Request, res: express.Response }> = [];
-  private requestPromises: Array<{ resolve: (value: IncomingMessage) => void, reject: (reason: any) => void }> = [];
+  private actions: IAction[] = [];
+  private openTransactions: ITransaction[] = [];
   private httpServer: Server = null;
 
   constructor(private app: express.Express) {
   }
 
-  public respond(mockResponse: IMockResponse): void {
+  public respond(mockResponse: IMockResponse, options: any = {}): void {
     if (!this.isStarted()) {
       throw new Error("Server has not been started");
     }
-    this.mockResponses.unshift(mockResponse);
-    this.evaluate();
+    this.addAction(ActionType.RESPOND, mockResponse, options);
+    this.processActions();
   }
 
-  public getRequest(mockResponse?: IMockResponse): Promise<IncomingMessage> {
+  public getRequest(mockResponse: IMockResponse, options: any = {}): Promise<IRequest> {
     return new Promise((resolve, reject) => {
       if (!this.isStarted()) {
         reject(new Error("Server has not been started"));
       }
-      this.requestPromises.unshift({resolve, reject});
-      this.evaluate();
+      this.addAction(ActionType.GET_REQUEST, mockResponse, options, {resolve, reject});
+      this.processActions();
     });
   }
 
@@ -43,8 +59,7 @@ export class ExpressServer implements IServer {
         reject(new Error("Server is already running"));
         return;
       }
-      // TODO need to determine paths to map mock mockResponses from config
-      this.app.use("/api", this.onRequest.bind(this));
+      config.paths.forEach((path) => this.app.use(path, this.onRequest.bind(this)));
       this.httpServer = this.app.listen(config.port, (err) => {
         if (err) {
           this.httpServer = null;
@@ -74,9 +89,8 @@ export class ExpressServer implements IServer {
 
   private onRequest(req: express.Request, res: express.Response): void {
     if (this.isStarted()) {
-      this.requests.unshift(req);
-      this.openRequests.unshift({req, res});
-      this.evaluate();
+      this.openTransactions.unshift({req, res});
+      this.processActions();
     } else {
       res.sendStatus(404);
     }
@@ -92,24 +106,58 @@ export class ExpressServer implements IServer {
     res.json(response.data);
   }
 
-  // noinspection JSMethodCanBeStatic
-  private matches(req: express.Request, response: IMockResponse): boolean {
-    return req.url.match(response.expression) && response.method === req.method;
+  private addAction(type: ActionType, mockResponse: IMockResponse, options: any, payload?: any) {
+    this.actions.unshift({
+      mockResponse,
+      options,
+      payload,
+      type,
+    });
   }
 
-  private evaluate(): void {
-    for (let i = this.openRequests.length - 1; i >= 0; --i) {
-      const tx = this.openRequests[i];
+  // noinspection JSMethodCanBeStatic
+  private matches(action: IAction, tx: ITransaction): boolean {
+    return tx.req.url.match(action.mockResponse.expression) && action.mockResponse.method === tx.req.method;
+  }
 
-      for (let j = this.mockResponses.length - 1; j >= 0; --j) {
-        const mockResponse = this.mockResponses[j];
-        if (this.matches(tx.req, mockResponse)) {
-          this.openRequests.splice(i, 1);
-          this.mockResponses.splice(j, 1);
-          if (mockResponse.delay > 0) {
-            setTimeout(() => this.returnResponse(tx.res, mockResponse), mockResponse.delay);
-          } else {
-            this.returnResponse(tx.res, mockResponse);
+  private processRespond(action: IAction, tx: ITransaction) {
+    const mockResponse = action.mockResponse;
+    if (mockResponse.delay > 0) {
+      setTimeout(() => this.returnResponse(tx.res, mockResponse), mockResponse.delay);
+    } else {
+      this.returnResponse(tx.res, mockResponse);
+    }
+  }
+
+  // noinspection JSMethodCanBeStatic
+  private processGetRequest(action: IAction, tx: ITransaction) {
+    const resolve = action.payload.resolve;
+    const request: IRequest = {
+      headers: Object.assign({}, tx.req.headers),
+      method: tx.req.method,
+      url: tx.req.url,
+    };
+    resolve(request);
+  }
+
+  private processActions(): void {
+    for (let i = this.openTransactions.length - 1; i >= 0; --i) {
+      const tx = this.openTransactions[i];
+
+      for (let j = this.actions.length - 1; j >= 0; --j) {
+        const action = this.actions[j];
+
+        if (this.matches(action, tx)) {
+          switch (action.type) {
+            case ActionType.GET_REQUEST:
+              this.actions.splice(j, 1);
+              this.processGetRequest(action, tx);
+              break;
+            case ActionType.RESPOND:
+              this.openTransactions.splice(i, 1);
+              this.actions.splice(j, 1);
+              this.processRespond(action, tx);
+              break;
           }
         }
       }

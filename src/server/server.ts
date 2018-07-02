@@ -1,13 +1,13 @@
-import {IncomingMessage} from "http";
 import app from "./app";
 import {ExpressServer} from "./ExpressServer";
 import {IConfig} from "./IConfig";
 import {IMockResponse} from "./IMockResponse";
+import {IRequest} from "./IRequest";
 
 export interface IServer {
-  respond(mockResponse: IMockResponse);
+  respond(mockResponse: IMockResponse, options?: any);
 
-  getRequest(): Promise<IncomingMessage>;
+  getRequest(mockResponse: IMockResponse, options?: any): Promise<IRequest>;
 
   isStarted(): boolean;
 
