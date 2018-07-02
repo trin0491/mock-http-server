@@ -1,6 +1,3 @@
-// tslint:disable-next-line
-/// <reference path="./HttpMatchers.d.ts" />
-
 import {IncomingMessage} from "http";
 import {ExpressServer} from "./ExpressServer";
 import {IConfig} from "./IConfig";
@@ -20,23 +17,6 @@ describe("ExpressServer", () => {
   let config: IConfig;
 
   beforeEach(() => {
-    jasmine.addMatchers({
-      toBeFromHttpReq: (util, customEqualityTesters) => {
-        return {
-          compare: (actual, expected: IncomingMessage) => {
-            const result: any = {};
-            result.pass = false;
-
-            if (result.pass) {
-              result.message = `Expected request ${actual} not to be from request ${expected}`;
-            } else {
-              result.message = `Expected request ${actual} to be from request ${expected}`;
-            }
-            return result;
-          },
-        };
-      },
-    });
     requestCallback = null;
     config = {port: PORT, paths: ["/api"]};
     mockApp = jasmine.createSpyObj("app", ["use", "listen"]);
