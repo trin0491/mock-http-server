@@ -148,16 +148,17 @@ export class ExpressServer implements IServer {
         const action = this.actions[j];
 
         if (this.matches(action, tx)) {
+          this.actions.splice(j, 1);
           switch (action.type) {
             case ActionType.GET_REQUEST:
-              this.actions.splice(j, 1);
               this.processGetRequest(action, tx);
               break;
             case ActionType.RESPOND:
               this.openTransactions.splice(i, 1);
-              this.actions.splice(j, 1);
               this.processRespond(action, tx);
               break;
+            default:
+              throw new Error("Unknown action type: " + ActionType[action.type]);
           }
         }
       }
