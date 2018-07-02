@@ -60,6 +60,7 @@ export class ExpressServer implements IServer {
         reject(new Error("Server is already running"));
         return;
       }
+      this.app.use(express.json());
       config.paths.forEach((path) => this.app.use(path, this.onRequest.bind(this)));
       this.httpServer = this.app.listen(config.port, (err) => {
         if (err) {
@@ -134,6 +135,7 @@ export class ExpressServer implements IServer {
   private processGetRequest(action: IAction, tx: ITransaction) {
     const resolve = action.payload.resolve;
     const request: IRequest = {
+      body: tx.req.body,
       headers: Object.assign({}, tx.req.headers),
       method: tx.req.method,
       url: tx.req.url,
