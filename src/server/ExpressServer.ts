@@ -60,8 +60,10 @@ export class ExpressServer implements IServer {
         reject(new Error("Server is already running"));
         return;
       }
-      this.app.use(express.json());
-      config.paths.forEach((path) => this.app.use(path, this.onRequest.bind(this)));
+      config.paths.forEach((path) => {
+        this.app.use(path, express.json());  // to provide the body property on IRequest
+        this.app.use(path, this.onRequest.bind(this));
+      });
       this.httpServer = this.app.listen(config.port, (err) => {
         if (err) {
           this.httpServer = null;

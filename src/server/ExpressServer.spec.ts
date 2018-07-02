@@ -28,11 +28,9 @@ describe("ExpressServer", () => {
 
   function expectListen() {
     mockApp.use.and.callFake((path, callback) => {
-      if (path && callback) {
-        expect(path).toBe(config.paths[0]);
-        expect(callback).toBeDefined();
-        requestCallback = callback;
-      }
+      expect(path).toBe(config.paths[0]);
+      expect(callback).toBeDefined();
+      requestCallback = callback;  // last callback should be request callback
     });
 
     mockApp.listen.and.callFake((port, callback) => {
