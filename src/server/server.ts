@@ -7,7 +7,11 @@ import {ITestResponse} from "./ITestResponse";
 export interface IMockHttpServer {
   respond(testResponse: ITestResponse, options?: any);
 
+  getResponses(): ITestResponse[];
+
   getRequest(testResponse: ITestResponse, options?: any): Promise<ITestRequest>;
+
+  getRequests(): ITestRequest[];
 
   isStarted(): boolean;
 

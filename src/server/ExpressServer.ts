@@ -25,6 +25,8 @@ interface ITransaction {
 
 export class ExpressServer implements IMockHttpServer {
 
+  private static readonly ERR_NOT_STARTED = "Server has not been started";
+
   private actions: IAction[] = [];
   private openTransactions: ITransaction[] = [];
   private httpServer: Server = null;
@@ -34,20 +36,38 @@ export class ExpressServer implements IMockHttpServer {
 
   public respond(testResponse: ITestResponse, options: any = {}): void {
     if (!this.isStarted()) {
-      throw new Error("Server has not been started");
+      throw new Error(ExpressServer.ERR_NOT_STARTED);
     }
     this.addAction(ActionType.RESPOND, testResponse, options);
     this.processActions();
   }
 
+  public getResponses(): ITestResponse[] {
+    if (!this.isStarted()) {
+      throw new Error(ExpressServer.ERR_NOT_STARTED);
+    }
+    return this.actions.filter((action: IAction) => {
+      return action.type === ActionType.RESPOND;
+    }).map((respondAction: IAction) => {
+      return respondAction.testResponse;
+    });
+  }
+
   public getRequest(testResponse: ITestResponse, options: any = {}): Promise<ITestRequest> {
     return new Promise((resolve, reject) => {
       if (!this.isStarted()) {
-        reject(new Error("Server has not been started"));
+        reject(new Error(ExpressServer.ERR_NOT_STARTED));
       }
       this.addAction(ActionType.GET_REQUEST, testResponse, options, {resolve, reject});
       this.processActions();
     });
+  }
+
+  public getRequests(): ITestRequest[] {
+    if (!this.isStarted()) {
+      throw new Error(ExpressServer.ERR_NOT_STARTED);
+    }
+    return this.openTransactions.map((tx) => this.toRequest(tx));
   }
 
   public isStarted(): boolean {
@@ -57,7 +77,7 @@ export class ExpressServer implements IMockHttpServer {
   public start(config: IConfig): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this.isStarted()) {
-        reject(new Error("Server is already running"));
+        reject(new Error(ExpressServer.ERR_NOT_STARTED));
         return;
       }
       config.paths.forEach((path) => {
@@ -78,7 +98,7 @@ export class ExpressServer implements IMockHttpServer {
   public stop(): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!this.isStarted()) {
-        reject(new Error("Server has not been started"));
+        reject(new Error(ExpressServer.ERR_NOT_STARTED));
       }
       this.httpServer.close((err) => {
         if (err) {
@@ -133,16 +153,20 @@ export class ExpressServer implements IMockHttpServer {
     }
   }
 
-  // noinspection JSMethodCanBeStatic
   private processGetRequest(action: IAction, tx: ITransaction) {
     const resolve = action.payload.resolve;
-    const request: ITestRequest = {
+    const request = this.toRequest(tx);
+    resolve(request);
+  }
+
+  // noinspection JSMethodCanBeStatic
+  private toRequest(tx: ITransaction): ITestRequest {
+    return {
       body: tx.req.body,
       headers: Object.assign({}, tx.req.headers),
       method: tx.req.method,
       url: tx.req.originalUrl,
     };
-    resolve(request);
   }
 
   private processActions(): void {

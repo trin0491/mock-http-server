@@ -1,11 +1,12 @@
 import * as express from "express";
 import {ExpressServer} from "./ExpressServer";
 import {IConfig} from "./IConfig";
-import {ITestResponse} from "./ITestResponse";
 import {ITestRequest} from "./ITestRequest";
+import {ITestResponse} from "./ITestResponse";
 
 describe("ExpressServer", () => {
 
+  const ERR_NOT_STARTED = "Server has not been started";
   const PORT = 3000;
   const URL = "/api/some/path?withParam=abc";
   const METHOD = "GET";
@@ -111,7 +112,7 @@ describe("ExpressServer", () => {
         return server.start(config).catch((err) => {
           expect(mockApp.use).toHaveBeenCalledTimes(2);
           expect(mockApp.listen).toHaveBeenCalledTimes(1);
-          expect(err.message).toBe("Server is already running");
+          expect(err.message).toBe(ERR_NOT_STARTED);
           expect(server.isStarted()).toBe(true);
         });
       });
@@ -145,7 +146,7 @@ describe("ExpressServer", () => {
 
     it("should not stop the server if it has not been started", () => {
       return server.stop().catch((err) => {
-        expect(err.message).toBe("Server has not been started");
+        expect(err.message).toBe(ERR_NOT_STARTED);
         expect(mockHttp.close).not.toHaveBeenCalled();
         expect(server.isStarted()).toBe(false);
       });
@@ -306,7 +307,7 @@ describe("ExpressServer", () => {
   describe("getRequest()", () => {
     it("should reject calls if the server has not been started", () => {
       server.getRequest(newMockResponse()).catch((err) => {
-        expect(err.message).toBe("Server has not been started");
+        expect(err.message).toBe(ERR_NOT_STARTED);
       });
     });
 
@@ -356,4 +357,55 @@ describe("ExpressServer", () => {
     });
   });
 
+  describe("getRequests()", () => {
+    it("should throw an error if the server has not been started", () => {
+      expect(() => server.getRequests()).toThrowError(ERR_NOT_STARTED);
+    });
+
+    it("should return an empty array when there are no requests", async () => {
+      expectListen();
+      await server.start(config);
+
+      expect(server.getRequests()).toEqual([]);
+    });
+
+    it("return convert express requests to a ITestRequest", async () => {
+      expectListen();
+      await server.start(config);
+      const [mockReq, mockRes, mockNext] = newMockHttpRequest();
+      requestCallback(mockReq, mockRes, mockNext);
+
+      expect(server.getRequests().length).toBe(1);
+      expectRequest(server.getRequests()[0], mockReq);
+    });
+  });
+
+  describe("getResponses()", () => {
+    it("should throw an error if the server is not started", () => {
+      expect(() => server.getResponses()).toThrowError(ERR_NOT_STARTED);
+    });
+
+    it("should return an empty array when there are no responses", async () => {
+      expectListen();
+      await server.start(config);
+
+      expect(server.getResponses()).toEqual([]);
+    });
+
+    it("should convert response actions to ITestResponse", async () => {
+      expectListen();
+      await server.start(config);
+
+      const mockResponse1 = newMockResponse();
+      const mockResponse2 = newMockResponse();
+
+      server.respond(mockResponse1);
+      server.getRequest(mockResponse2);
+      server.respond(mockResponse2);
+
+      expect(server.getResponses().length).toBe(2);
+      expect(server.getResponses()[0]).toBe(mockResponse2);
+      expect(server.getResponses()[1]).toBe(mockResponse1);
+    });
+  });
 });
