@@ -1,13 +1,13 @@
 import app from "./app";
 import {ExpressServer} from "./ExpressServer";
 import {IConfig} from "./IConfig";
-import {IMockResponse} from "./IMockResponse";
-import {IRequest} from "./IRequest";
+import {ITestRequest} from "./ITestRequest";
+import {ITestResponse} from "./ITestResponse";
 
-export interface IServer {
-  respond(mockResponse: IMockResponse, options?: any);
+export interface IMockHttpServer {
+  respond(testResponse: ITestResponse, options?: any);
 
-  getRequest(mockResponse: IMockResponse, options?: any): Promise<IRequest>;
+  getRequest(testResponse: ITestResponse, options?: any): Promise<ITestRequest>;
 
   isStarted(): boolean;
 
@@ -16,4 +16,4 @@ export interface IServer {
   stop(): Promise<void>;
 }
 
-export const server: IServer = new ExpressServer(app);
+export const server: IMockHttpServer = new ExpressServer(app);

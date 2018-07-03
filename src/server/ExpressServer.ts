@@ -1,9 +1,9 @@
 import * as express from "express";
 import {Server} from "http";
 import {IConfig} from "./IConfig";
-import {IMockResponse} from "./IMockResponse";
-import {IRequest} from "./IRequest";
-import {IServer} from "./server";
+import {ITestRequest} from "./ITestRequest";
+import {ITestResponse} from "./ITestResponse";
+import {IMockHttpServer} from "./server";
 
 enum ActionType {
   GET_REQUEST,
@@ -12,7 +12,7 @@ enum ActionType {
 
 interface IAction {
   type: ActionType;
-  mockResponse: IMockResponse;
+  testResponse: ITestResponse;
   options: any;
   payload?: any;
 }
@@ -23,7 +23,7 @@ interface ITransaction {
   next: express.NextFunction;
 }
 
-export class ExpressServer implements IServer {
+export class ExpressServer implements IMockHttpServer {
 
   private actions: IAction[] = [];
   private openTransactions: ITransaction[] = [];
@@ -32,20 +32,20 @@ export class ExpressServer implements IServer {
   constructor(private app: express.Express) {
   }
 
-  public respond(mockResponse: IMockResponse, options: any = {}): void {
+  public respond(testResponse: ITestResponse, options: any = {}): void {
     if (!this.isStarted()) {
       throw new Error("Server has not been started");
     }
-    this.addAction(ActionType.RESPOND, mockResponse, options);
+    this.addAction(ActionType.RESPOND, testResponse, options);
     this.processActions();
   }
 
-  public getRequest(mockResponse: IMockResponse, options: any = {}): Promise<IRequest> {
+  public getRequest(testResponse: ITestResponse, options: any = {}): Promise<ITestRequest> {
     return new Promise((resolve, reject) => {
       if (!this.isStarted()) {
         reject(new Error("Server has not been started"));
       }
-      this.addAction(ActionType.GET_REQUEST, mockResponse, options, {resolve, reject});
+      this.addAction(ActionType.GET_REQUEST, testResponse, options, {resolve, reject});
       this.processActions();
     });
   }
@@ -61,7 +61,7 @@ export class ExpressServer implements IServer {
         return;
       }
       config.paths.forEach((path) => {
-        this.app.use(path, express.json());  // to provide the body property on IRequest
+        this.app.use(path, express.json());  // to provide the body property on ITestRequest
         this.app.use(path, this.onRequest.bind(this));
       });
       this.httpServer = this.app.listen(config.port, (err) => {
@@ -101,7 +101,7 @@ export class ExpressServer implements IServer {
   }
 
   // noinspection JSMethodCanBeStatic
-  private returnResponse(res: express.Response, response: IMockResponse): void {
+  private returnResponse(res: express.Response, response: ITestResponse): void {
     if (response.status) {
       res.status(response.status);
     } else {
@@ -110,37 +110,37 @@ export class ExpressServer implements IServer {
     res.json(response.data);
   }
 
-  private addAction(type: ActionType, mockResponse: IMockResponse, options: any, payload?: any) {
+  private addAction(type: ActionType, testResponse: ITestResponse, options: any, payload?: any) {
     this.actions.unshift({
-      mockResponse,
       options,
       payload,
+      testResponse,
       type,
     });
   }
 
   // noinspection JSMethodCanBeStatic
   private matches(action: IAction, tx: ITransaction): boolean {
-    return tx.req.url.match(action.mockResponse.expression) && action.mockResponse.method === tx.req.method;
+    return tx.req.originalUrl.match(action.testResponse.expression) && action.testResponse.method === tx.req.method;
   }
 
   private processRespond(action: IAction, tx: ITransaction) {
-    const mockResponse = action.mockResponse;
-    if (mockResponse.delay > 0) {
-      setTimeout(() => this.returnResponse(tx.res, mockResponse), mockResponse.delay);
+    const testResponse = action.testResponse;
+    if (testResponse.delay > 0) {
+      setTimeout(() => this.returnResponse(tx.res, testResponse), testResponse.delay);
     } else {
-      this.returnResponse(tx.res, mockResponse);
+      this.returnResponse(tx.res, testResponse);
     }
   }
 
   // noinspection JSMethodCanBeStatic
   private processGetRequest(action: IAction, tx: ITransaction) {
     const resolve = action.payload.resolve;
-    const request: IRequest = {
+    const request: ITestRequest = {
       body: tx.req.body,
       headers: Object.assign({}, tx.req.headers),
       method: tx.req.method,
-      url: tx.req.url,
+      url: tx.req.originalUrl,
     };
     resolve(request);
   }

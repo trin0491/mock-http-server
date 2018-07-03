@@ -1,8 +1,8 @@
 import * as express from "express";
 import {ExpressServer} from "./ExpressServer";
 import {IConfig} from "./IConfig";
-import {IMockResponse} from "./IMockResponse";
-import {IRequest} from "./IRequest";
+import {ITestResponse} from "./ITestResponse";
+import {ITestRequest} from "./ITestRequest";
 
 describe("ExpressServer", () => {
 
@@ -46,7 +46,7 @@ describe("ExpressServer", () => {
     });
   }
 
-  function newMockResponse(): IMockResponse {
+  function newMockResponse(): ITestResponse {
     return {
       data: {aKey: "aValue"},
       expression: "/api/some/path",
@@ -56,7 +56,7 @@ describe("ExpressServer", () => {
 
   function newMockHttpRequest() {
     const req = jasmine.createSpyObj("express.Request", ["get"]);
-    req.url = URL;
+    req.originalUrl = URL;
     req.method = METHOD;
     req.body = {requestId: ++requestId};
     const res = jasmine.createSpyObj("express.Response", ["json", "status", "sendStatus"]);
@@ -64,9 +64,9 @@ describe("ExpressServer", () => {
     return [req, res, next];
   }
 
-  function expectResponse(mockRes, mockResponse: IMockResponse) {
-    expect(mockRes.status).toHaveBeenCalledWith(mockResponse.status ? mockResponse.status : 200);
-    expect(mockRes.json).toHaveBeenCalledWith(mockResponse.data);
+  function expectResponse(mockRes, testResponse: ITestResponse) {
+    expect(mockRes.status).toHaveBeenCalledWith(testResponse.status ? testResponse.status : 200);
+    expect(mockRes.json).toHaveBeenCalledWith(testResponse.data);
   }
 
   function expectNoResponse(mockRes) {
@@ -74,9 +74,9 @@ describe("ExpressServer", () => {
     expect(mockRes.json).not.toHaveBeenCalled();
   }
 
-  function expectRequest(request: IRequest, mockReq: express.Request) {
+  function expectRequest(request: ITestRequest, mockReq: express.Request) {
     expect(request.method).toBe(mockReq.method);
-    expect(request.url).toBe(mockReq.url);
+    expect(request.url).toBe(mockReq.originalUrl);
     expect(request.body.requestId).toBe(mockReq.body.requestId, "requestId did not match");
     expect(request.headers).toBeDefined();
   }
@@ -154,21 +154,21 @@ describe("ExpressServer", () => {
 
   describe("respond()", () => {
     it("should throw an error if the server has not been started", () => {
-      const mockResponse = newMockResponse();
-      expect(() => server.respond(mockResponse)).toThrow();
+      const testResponse = newMockResponse();
+      expect(() => server.respond(testResponse)).toThrow();
     });
 
     it("should queue the response if the request has not been received", async () => {
       expectListen();
       await server.start(config);
 
-      const mockResponse = newMockResponse();
-      server.respond(mockResponse);
+      const testResponse = newMockResponse();
+      server.respond(testResponse);
 
       const [mockReq, mockRes, mockNext] = newMockHttpRequest();
       requestCallback(mockReq, mockRes, mockNext);
 
-      expectResponse(mockRes, mockResponse);
+      expectResponse(mockRes, testResponse);
     });
 
     it("should immediately respond if the request has already been received", async () => {
@@ -180,19 +180,19 @@ describe("ExpressServer", () => {
 
       expectNoResponse(mockRes);
 
-      const mockResponse = newMockResponse();
-      server.respond(mockResponse);
+      const testResponse = newMockResponse();
+      server.respond(testResponse);
 
-      expectResponse(mockRes, mockResponse);
+      expectResponse(mockRes, testResponse);
     });
 
     it("should ignore requests if the path does not match", async () => {
       expectListen();
       await server.start(config);
 
-      const mockResponse = newMockResponse();
-      mockResponse.expression = "/api/a/different/path";
-      server.respond(mockResponse);
+      const testResponse = newMockResponse();
+      testResponse.expression = "/api/a/different/path";
+      server.respond(testResponse);
 
       const [mockReq, mockRes, mockNext] = newMockHttpRequest();
       requestCallback(mockReq, mockRes, mockNext);
@@ -204,9 +204,9 @@ describe("ExpressServer", () => {
       expectListen();
       await server.start(config);
 
-      const mockResponse = newMockResponse();
-      mockResponse.method = "POST";
-      server.respond(mockResponse);
+      const testResponse = newMockResponse();
+      testResponse.method = "POST";
+      server.respond(testResponse);
 
       const [mockReq, mockRes, mockNext] = newMockHttpRequest();
       requestCallback(mockReq, mockRes, mockNext);
@@ -218,50 +218,50 @@ describe("ExpressServer", () => {
       expectListen();
       await server.start(config);
 
-      const mockResponse = newMockResponse();
-      mockResponse.status = 401;
-      server.respond(mockResponse);
+      const testResponse = newMockResponse();
+      testResponse.status = 401;
+      server.respond(testResponse);
 
       const [mockReq, mockRes, mockNext] = newMockHttpRequest();
       requestCallback(mockReq, mockRes, mockNext);
 
-      expectResponse(mockRes, mockResponse);
+      expectResponse(mockRes, testResponse);
     });
 
     it("should return the first matching mock response", async () => {
       expectListen();
       await server.start(config);
 
-      const mockResponse1 = newMockResponse();
-      mockResponse1.method = "POST";
-      mockResponse1.data = {value: "1"};
-      server.respond(mockResponse1);
+      const testResponse1 = newMockResponse();
+      testResponse1.method = "POST";
+      testResponse1.data = {value: "1"};
+      server.respond(testResponse1);
 
-      const mockResponse2 = newMockResponse();
-      mockResponse2.data = {value: "2"};
-      server.respond(mockResponse2);
+      const testResponse2 = newMockResponse();
+      testResponse2.data = {value: "2"};
+      server.respond(testResponse2);
 
-      const mockResponse3 = newMockResponse();
-      mockResponse3.data = {value: "3"};
-      server.respond(mockResponse3);
+      const testResponse3 = newMockResponse();
+      testResponse3.data = {value: "3"};
+      server.respond(testResponse3);
 
       const [mockReq, mockRes, mockNext] = newMockHttpRequest();
       requestCallback(mockReq, mockRes, mockNext);
 
-      expectResponse(mockRes, mockResponse2);
+      expectResponse(mockRes, testResponse2);
     });
 
     it("should only respond once", async () => {
       expectListen();
       await server.start(config);
 
-      const mockResponse = newMockResponse();
-      server.respond(mockResponse);
+      const testResponse = newMockResponse();
+      server.respond(testResponse);
 
       const [mockReq, mockRes, mockNext] = newMockHttpRequest();
       requestCallback(mockReq, mockRes, mockNext);
 
-      expectResponse(mockRes, mockResponse);
+      expectResponse(mockRes, testResponse);
 
       requestCallback(mockReq, mockRes, mockNext);
       expect(mockRes.status).toHaveBeenCalledTimes(1);
@@ -272,8 +272,8 @@ describe("ExpressServer", () => {
       expectListen();
       await server.start(config);
 
-      const mockResponse = newMockResponse();
-      server.respond(mockResponse);
+      const testResponse = newMockResponse();
+      server.respond(testResponse);
 
       expectClose();
       await server.stop();
@@ -288,10 +288,10 @@ describe("ExpressServer", () => {
       expectListen();
       await server.start(config);
 
-      const mockResponse = newMockResponse();
-      mockResponse.data = () => { /* this wouldn't parse to json */
+      const testResponse = newMockResponse();
+      testResponse.data = () => { /* this wouldn't parse to json */
       };
-      server.respond(mockResponse);
+      server.respond(testResponse);
 
       const [mockReq, mockRes, mockNext] = newMockHttpRequest();
       const errorMsg = "Failed to parse mock response into json";
@@ -317,7 +317,7 @@ describe("ExpressServer", () => {
       const [mockReq, mockRes, mockNext] = newMockHttpRequest();
 
       const requestValidated = server.getRequest(newMockResponse())
-        .then((request: IRequest) => expectRequest(request, mockReq))
+        .then((request: ITestRequest) => expectRequest(request, mockReq))
         .then(() => expectNoResponse(mockRes));
 
       requestCallback(mockReq, mockRes, mockNext);
@@ -334,7 +334,7 @@ describe("ExpressServer", () => {
       requestCallback(mockReq1, mockRes1, mockNext1);
 
       return server.getRequest(newMockResponse())
-        .then((request: IRequest) => expectRequest(request, mockReq1));
+        .then((request: ITestRequest) => expectRequest(request, mockReq1));
     });
 
     it("should allow a response to be sent", async () => {
@@ -343,12 +343,12 @@ describe("ExpressServer", () => {
 
       const [mockReq1, mockRes1, mockNext1] = newMockHttpRequest();
 
-      const mockResponse = newMockResponse();
+      const testResponse = newMockResponse();
 
-      const requestValidated = server.getRequest(mockResponse)
-        .then((request: IRequest) => expectRequest(request, mockReq1))
-        .then(() => server.respond(mockResponse))
-        .then(() => expectResponse(mockRes1, mockResponse));
+      const requestValidated = server.getRequest(testResponse)
+        .then((request: ITestRequest) => expectRequest(request, mockReq1))
+        .then(() => server.respond(testResponse))
+        .then(() => expectResponse(mockRes1, testResponse));
 
       requestCallback(mockReq1, mockRes1, mockNext1);
 

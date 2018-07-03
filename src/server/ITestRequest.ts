@@ -1,4 +1,4 @@
-export interface IRequest {
+export interface ITestRequest {
   body: any;
   method: string;
   url: string;

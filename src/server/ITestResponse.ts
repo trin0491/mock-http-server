@@ -1,4 +1,4 @@
-export interface IMockResponse {
+export interface ITestResponse {
   expression: string;
   method: "GET" | "POST" | "UPDATE";
   status?: number;

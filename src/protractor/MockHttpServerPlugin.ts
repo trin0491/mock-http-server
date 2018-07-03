@@ -8,9 +8,10 @@ const plugin: ProtractorPlugin = {
 
   onPrepare() {
     const config = {
+      paths: ["/api"],
       port: 3000,
     };
-    return server.run(config)
+    return server.start(config)
       .then(() => console.log(`Started mock server on http:localhost:${config.port}`))
       .catch((err) => console.error("Failed to start mock server", err));
   },
