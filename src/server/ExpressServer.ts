@@ -26,6 +26,7 @@ interface ITransaction {
 export class ExpressServer implements IMockHttpServer {
 
   private static readonly ERR_NOT_STARTED = "Server has not been started";
+  private static readonly ERR_STARTED = "Server has already been started";
 
   private actions: IAction[] = [];
   private openTransactions: ITransaction[] = [];
@@ -77,7 +78,7 @@ export class ExpressServer implements IMockHttpServer {
   public start(config: IConfig): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this.isStarted()) {
-        reject(new Error(ExpressServer.ERR_NOT_STARTED));
+        reject(new Error(ExpressServer.ERR_STARTED));
         return;
       }
       config.paths.forEach((path) => {
@@ -109,6 +110,17 @@ export class ExpressServer implements IMockHttpServer {
         }
       });
     });
+  }
+
+  public clear() {
+    if (!this.isStarted()) {
+      throw new Error(ExpressServer.ERR_NOT_STARTED);
+    }
+    this.openTransactions.forEach((tx: ITransaction) => {
+      tx.res.sendStatus(404);
+    });
+    this.openTransactions = [];
+    this.actions = [];
   }
 
   private onRequest(req: express.Request, res: express.Response, next: express.NextFunction): void {
@@ -159,16 +171,6 @@ export class ExpressServer implements IMockHttpServer {
     resolve(request);
   }
 
-  // noinspection JSMethodCanBeStatic
-  private toRequest(tx: ITransaction): ITestRequest {
-    return {
-      body: tx.req.body,
-      headers: Object.assign({}, tx.req.headers),
-      method: tx.req.method,
-      url: tx.req.originalUrl,
-    };
-  }
-
   private processActions(): void {
     for (let i = this.openTransactions.length - 1; i >= 0; --i) {
       const tx = this.openTransactions[i];
@@ -194,5 +196,15 @@ export class ExpressServer implements IMockHttpServer {
         }
       }
     }
+  }
+
+  // noinspection JSMethodCanBeStatic
+  private toRequest(tx: ITransaction): ITestRequest {
+    return {
+      body: tx.req.body,
+      headers: Object.assign({}, tx.req.headers),
+      method: tx.req.method,
+      url: tx.req.originalUrl,
+    };
   }
 }

@@ -18,6 +18,8 @@ export interface IMockHttpServer {
   start(config: IConfig): Promise<void>;
 
   stop(): Promise<void>;
+
+  clear(): void;
 }
 
 export const server: IMockHttpServer = new ExpressServer(app);

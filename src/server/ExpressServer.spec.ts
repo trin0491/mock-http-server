@@ -112,7 +112,7 @@ describe("ExpressServer", () => {
         return server.start(config).catch((err) => {
           expect(mockApp.use).toHaveBeenCalledTimes(2);
           expect(mockApp.listen).toHaveBeenCalledTimes(1);
-          expect(err.message).toBe(ERR_NOT_STARTED);
+          expect(err.message).toBe("Server has already been started");
           expect(server.isStarted()).toBe(true);
         });
       });
@@ -406,6 +406,34 @@ describe("ExpressServer", () => {
       expect(server.getResponses().length).toBe(2);
       expect(server.getResponses()[0]).toBe(mockResponse2);
       expect(server.getResponses()[1]).toBe(mockResponse1);
+    });
+  });
+
+  describe("clear()", () => {
+    it("should throw an error if the server has not been started", () => {
+      expect(() => server.clear()).toThrowError(ERR_NOT_STARTED);
+    });
+
+    it("should clear unsent responses", async () => {
+      expectListen();
+      await server.start(config);
+
+      server.respond(newMockResponse());
+      expect(server.getResponses().length).toBe(1);
+      server.clear();
+      expect(server.getResponses().length).toBe(0);
+    });
+
+    it("should reject any unprocessed requests", async () => {
+      expectListen();
+      await server.start(config);
+
+      const [mockReq, mockRes, mockNext] = newMockHttpRequest();
+      requestCallback(mockReq, mockRes, mockNext);
+
+      server.clear();
+
+      expect(mockRes.sendStatus).toHaveBeenCalledWith(404);
     });
   });
 });
